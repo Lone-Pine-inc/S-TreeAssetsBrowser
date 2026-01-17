@@ -3,7 +3,7 @@
     "Editor": {
       "commandName": "Executable",
       "executablePath": "C:\\program files (x86)\\steam\\steamapps\\common\\sbox\\sbox-dev.exe",
-      "commandLineArgs": "-project \u0022C:\\Users\\Lecoo\\Documents\\GitHub\\TreeAssetsBrowser\\treeassetsbrowser.sbproj\u0022"
+      "commandLineArgs": "-project \u0022C:\\Users\\Lecoo\\Documents\\GitHub\\S-TreeAssetsBrowser\\treeassetsbrowser.sbproj\u0022"
     }
   }
 }

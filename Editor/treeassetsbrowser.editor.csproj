@@ -46,7 +46,7 @@
 		<ProjectReference Include="C:\Program Files (x86)\Steam\steamapps\common\sbox\editor\Hammer\Code\hammer.csproj" />
 		<ProjectReference Include="C:\Program Files (x86)\Steam\steamapps\common\sbox\addons\tools\Code\Base Editor Library.csproj" />
 		<ProjectReference Include="C:\Program Files (x86)\Steam\steamapps\common\sbox\editor\ShaderGraph\Code\shadergraph.csproj" />
-		<ProjectReference Include="C:\Users\Lecoo\Documents\GitHub\TreeAssetsBrowser\Code\treeassetsbrowser.csproj" />
+		<ProjectReference Include="C:\Users\Lecoo\Documents\GitHub\S-TreeAssetsBrowser\Code\treeassetsbrowser.csproj" />
 	</ItemGroup>
 
 </Project>

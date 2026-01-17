@@ -1,0 +1,38 @@
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Build outputs
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+
+# NuGet
+*.nupkg
+**/packages/*
+!**/packages/build/
+
+# s&box
+.sbox/
+*.generated.*
+
+# Rider
+.idea/
+
+# VS Code
+.vscode/
+
+# OS files
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# Logs
+*.log
+
+# Cache
+*.cache

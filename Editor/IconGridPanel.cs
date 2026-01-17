@@ -16,6 +16,8 @@ public class IconGridPanel : Widget, IBrowserPanel
     private Label _pathLabel;
     private IconButton _closeBtn;
     private IconButton _upBtn;
+    private IconButton _moveLeftBtn;
+    private IconButton _moveRightBtn;
     private ScrollArea _scrollArea;
     private IconGridCanvas _gridCanvas;
 
@@ -24,6 +26,8 @@ public class IconGridPanel : Widget, IBrowserPanel
     private FileSystemWatcher _watcher;
 
     public Action OnCloseRequested { get; set; }
+    public Action OnMoveLeftRequested { get; set; }
+    public Action OnMoveRightRequested { get; set; }
 
     public bool ShowCloseButton
     {
@@ -35,10 +39,29 @@ public class IconGridPanel : Widget, IBrowserPanel
         }
     }
 
+    public bool ShowMoveLeftButton
+    {
+        get => _moveLeftBtn?.Visible ?? false;
+        set
+        {
+            if (_moveLeftBtn != null)
+                _moveLeftBtn.Visible = value;
+        }
+    }
+
+    public bool ShowMoveRightButton
+    {
+        get => _moveRightBtn?.Visible ?? false;
+        set
+        {
+            if (_moveRightBtn != null)
+                _moveRightBtn.Visible = value;
+        }
+    }
+
     public IconGridPanel(Widget parent) : base(parent)
     {
         SetSizeMode(SizeMode.CanGrow, SizeMode.CanGrow);
-        MinimumWidth = 200;
         CreateUI();
         SetupFileWatcher();
     }
@@ -94,6 +117,18 @@ public class IconGridPanel : Widget, IBrowserPanel
 
         _toolbar.Layout.AddStretchCell();
 
+        _moveLeftBtn = _toolbar.Layout.Add(new IconButton("chevron_left"));
+        _moveLeftBtn.ToolTip = "Move Panel Left";
+        _moveLeftBtn.Background = Color.Transparent;
+        _moveLeftBtn.OnClick = () => OnMoveLeftRequested?.Invoke();
+        _moveLeftBtn.Visible = false;
+
+        _moveRightBtn = _toolbar.Layout.Add(new IconButton("chevron_right"));
+        _moveRightBtn.ToolTip = "Move Panel Right";
+        _moveRightBtn.Background = Color.Transparent;
+        _moveRightBtn.OnClick = () => OnMoveRightRequested?.Invoke();
+        _moveRightBtn.Visible = false;
+
         _closeBtn = _toolbar.Layout.Add(new IconButton("close"));
         _closeBtn.ToolTip = "Close Panel";
         _closeBtn.Background = Color.Transparent;
@@ -133,18 +168,34 @@ public class IconGridPanel : Widget, IBrowserPanel
         var displayPath = _currentFolder;
         var assetsPath = Project.Current?.GetAssetsPath();
         var codePath = Project.Current?.GetCodePath();
+        var corePath = global::Editor.FileSystem.Root?.GetFullPath("/core/");
+        var citizenPath = global::Editor.FileSystem.Root?.GetFullPath("/addons/citizen/assets/");
 
         if (!string.IsNullOrEmpty(assetsPath) && displayPath.StartsWith(assetsPath, StringComparison.OrdinalIgnoreCase))
             displayPath = "Assets" + displayPath.Substring(assetsPath.Length);
         else if (!string.IsNullOrEmpty(codePath) && displayPath.StartsWith(codePath, StringComparison.OrdinalIgnoreCase))
             displayPath = "Code" + displayPath.Substring(codePath.Length);
+        else if (!string.IsNullOrEmpty(corePath) && displayPath.StartsWith(corePath, StringComparison.OrdinalIgnoreCase))
+            displayPath = "Core" + displayPath.Substring(corePath.Length);
+        else if (!string.IsNullOrEmpty(citizenPath) && displayPath.StartsWith(citizenPath, StringComparison.OrdinalIgnoreCase))
+            displayPath = "Citizen" + displayPath.Substring(citizenPath.Length);
 
         _pathLabel.Text = displayPath.Replace("\\", "/");
 
-        // Enable up button
+        // Enable up button - allow navigation up unless we're at a root folder
         var parentDir = Directory.GetParent(_currentFolder);
-        var rootPath = assetsPath ?? codePath ?? "";
-        _upBtn.Enabled = parentDir != null && _currentFolder.Length > rootPath.Length;
+        bool isAtRoot = false;
+
+        if (!string.IsNullOrEmpty(assetsPath) && _currentFolder.Equals(assetsPath.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase))
+            isAtRoot = true;
+        else if (!string.IsNullOrEmpty(codePath) && _currentFolder.Equals(codePath.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase))
+            isAtRoot = true;
+        else if (!string.IsNullOrEmpty(corePath) && _currentFolder.Equals(corePath.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase))
+            isAtRoot = true;
+        else if (!string.IsNullOrEmpty(citizenPath) && _currentFolder.Equals(citizenPath.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase))
+            isAtRoot = true;
+
+        _upBtn.Enabled = parentDir != null && !isAtRoot;
 
         _gridCanvas.LoadFolder(_currentFolder);
     }
@@ -194,6 +245,7 @@ internal class IconGridCanvas : Widget
     public IconGridCanvas(Widget parent) : base(parent)
     {
         MinimumHeight = 100;
+        AcceptDrops = true;
     }
 
     /// <summary>
@@ -277,7 +329,8 @@ internal class IconGridCanvas : Widget
                 IsFolder = false,
                 IsCloud = true,
                 Package = pkg,
-                Author = pkg.Org?.Title ?? "Unknown"
+                Author = pkg.Org?.Title ?? "Unknown",
+                CloudThumb = pkg.Thumb
             });
         }
 
@@ -358,14 +411,21 @@ internal class IconGridCanvas : Widget
 
         if (item.IsCloud)
         {
-            // Cloud item - draw icon based on package type
-            Paint.SetBrush(Theme.WidgetBackground);
-            Paint.DrawRect(iconRect, 4);
+            // Cloud item - draw thumbnail if available, otherwise icon
+            if (!string.IsNullOrEmpty(item.CloudThumb) && item.CloudThumb.StartsWith("http"))
+            {
+                Paint.Draw(iconRect, item.CloudThumb);
+            }
+            else
+            {
+                Paint.SetBrush(Theme.WidgetBackground);
+                Paint.DrawRect(iconRect, 4);
 
-            var icon = GetIconForPackageType(item.Package?.PackageType ?? Package.Type.Model);
-            var color = GetColorForPackageType(item.Package?.PackageType ?? Package.Type.Model);
-            Paint.SetPen(color);
-            Paint.DrawIcon(iconRect, icon, 48, TextFlag.Center);
+                var icon = GetIconForPackageType(item.Package?.PackageType ?? Package.Type.Model);
+                var color = GetColorForPackageType(item.Package?.PackageType ?? Package.Type.Model);
+                Paint.SetPen(color);
+                Paint.DrawIcon(iconRect, icon, 48, TextFlag.Center);
+            }
         }
         else if (item.Thumbnail != null)
         {
@@ -490,11 +550,22 @@ internal class IconGridCanvas : Widget
     {
         if (index < 0 || index >= _items.Count) return;
         var item = _items[index];
-        if (item.IsCloud) return; // Can't drag cloud items
 
         var drag = new Drag(this);
 
-        if (item.IsFolder)
+        if (item.IsCloud)
+        {
+            // Cloud item - set package FullIdent for scene drop
+            drag.Data.Text = item.Package?.FullIdent ?? "";
+
+            // Set thumbnail URL if available
+            var thumb = item.Package?.Thumb;
+            if (!string.IsNullOrEmpty(thumb))
+            {
+                drag.Data.Url = new Uri(thumb);
+            }
+        }
+        else if (item.IsFolder)
         {
             drag.Data.Url = new Uri("file:///" + item.Path);
         }
@@ -541,6 +612,141 @@ internal class IconGridCanvas : Widget
                     item.Asset.OpenInEditor();
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// Handle drag hover - show appropriate drop cursor
+    /// </summary>
+    public override void OnDragHover(DragEvent ev)
+    {
+        base.OnDragHover(ev);
+
+        ev.Action = DropAction.Ignore;
+
+        // Only accept drops if we have a current folder to drop into
+        if (string.IsNullOrEmpty(_currentFolder) || !Directory.Exists(_currentFolder))
+            return;
+
+        // Check if dragging over a folder item
+        int index = GetItemAtPosition(ev.LocalPosition);
+        if (index >= 0 && _items[index].IsFolder)
+        {
+            // Dropping onto a folder
+            ev.Action = ev.HasCtrl ? DropAction.Copy : DropAction.Move;
+            if (_hoveredIndex != index)
+            {
+                _hoveredIndex = index;
+                Update();
+            }
+        }
+        else if (ev.Data.HasFileOrFolder)
+        {
+            // Dropping into current folder
+            ev.Action = ev.HasCtrl ? DropAction.Copy : DropAction.Move;
+        }
+    }
+
+    /// <summary>
+    /// Handle dropping files from Windows Explorer or other sources
+    /// </summary>
+    public override void OnDragDrop(DragEvent ev)
+    {
+        base.OnDragDrop(ev);
+
+        if (!ev.Data.HasFileOrFolder)
+            return;
+
+        if (string.IsNullOrEmpty(_currentFolder) || !Directory.Exists(_currentFolder))
+            return;
+
+        // Check if dropping onto a folder item
+        int index = GetItemAtPosition(ev.LocalPosition);
+        string targetFolder = _currentFolder;
+
+        if (index >= 0 && _items[index].IsFolder)
+        {
+            targetFolder = _items[index].Path;
+        }
+
+        // Process the drop
+        bool isCopy = ev.HasCtrl;
+        ev.Action = isCopy ? DropAction.Copy : DropAction.Move;
+
+        foreach (var file in ev.Data.Files)
+        {
+            if (string.IsNullOrEmpty(file))
+                continue;
+
+            // Don't drop onto itself
+            if (file.Equals(targetFolder, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            try
+            {
+                var fileName = Path.GetFileName(file);
+                var destPath = Path.Combine(targetFolder, fileName);
+
+                // Don't overwrite if destination is same as source
+                if (Path.GetFullPath(file).Equals(Path.GetFullPath(destPath), StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                if (Directory.Exists(file))
+                {
+                    // It's a directory
+                    if (isCopy)
+                        CopyDirectory(file, destPath);
+                    else
+                        EditorUtility.RenameDirectory(file, destPath);
+                }
+                else if (File.Exists(file))
+                {
+                    // Check if it's a registered asset
+                    var asset = AssetSystem.FindByPath(file);
+
+                    if (asset != null && !asset.IsDeleted)
+                    {
+                        // Use EditorUtility for proper asset handling
+                        if (isCopy)
+                            EditorUtility.CopyAssetToDirectory(asset, targetFolder);
+                        else
+                            EditorUtility.MoveAssetToDirectory(asset, targetFolder);
+                    }
+                    else
+                    {
+                        // Regular file, not an asset
+                        if (isCopy)
+                            File.Copy(file, destPath, overwrite: false);
+                        else
+                            File.Move(file, destPath, overwrite: false);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Failed to {(isCopy ? "copy" : "move")} '{file}': {ex.Message}");
+            }
+        }
+
+        // Refresh the view
+        LoadFolder(_currentFolder);
+    }
+
+    /// <summary>
+    /// Recursively copy a directory
+    /// </summary>
+    private static void CopyDirectory(string sourceDir, string destDir)
+    {
+        Directory.CreateDirectory(destDir);
+
+        foreach (var file in Directory.GetFiles(sourceDir))
+        {
+            File.Copy(file, Path.Combine(destDir, Path.GetFileName(file)));
+        }
+
+        foreach (var dir in Directory.GetDirectories(sourceDir))
+        {
+            CopyDirectory(dir, Path.Combine(destDir, Path.GetFileName(dir)));
         }
     }
 
@@ -856,6 +1062,7 @@ internal class IconGridCanvas : Widget
         public string Extension;
         public Package Package;
         public string Author;
+        public string CloudThumb; // URL for cloud package thumbnail
     }
 }
 

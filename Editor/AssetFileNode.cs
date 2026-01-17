@@ -29,7 +29,7 @@ public class AssetFileNode : TreeNode
         { ".obj", "view_in_ar" },
         { ".gltf", "view_in_ar" },
         { ".glb", "view_in_ar" },
-
+        
         // Textures
         { ".png", "image" },
         { ".jpg", "image" },
@@ -213,7 +213,7 @@ public class AssetFileNode : TreeNode
                         {
                             try
                             {
-                                File.Delete(FullPath);
+                                DeleteFileWithCompiled();
                                 Parent?.Dirty();
                             }
                             catch (Exception ex)
@@ -289,6 +289,28 @@ public class AssetFileNode : TreeNode
         }
     }
 
+    /// <summary>
+    /// Delete the file and its compiled _c version if it exists
+    /// </summary>
+    private void DeleteFileWithCompiled()
+    {
+        // If we have an Asset, use its Delete method which handles compiled files
+        if (Asset != null)
+        {
+            Asset.Delete();
+            return;
+        }
+
+        // Otherwise manually delete the file and any compiled version
+        File.Delete(FullPath);
+
+        // Check for compiled _c version and delete it too
+        var compiledPath = FullPath + "_c";
+        if (File.Exists(compiledPath))
+        {
+            File.Delete(compiledPath);
+        }
+    }
 
     public override void OnRename(VirtualWidget item, string text, List<TreeNode> selection = null)
     {

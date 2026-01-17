@@ -13,10 +13,14 @@ public class CloudIconGridPanel : Widget, IBrowserPanel
     private Widget _toolbar;
     private Label _titleLabel;
     private IconButton _closeBtn;
+    private IconButton _moveLeftBtn;
+    private IconButton _moveRightBtn;
     private ScrollArea _scrollArea;
     private CloudGridCanvas _gridCanvas;
 
     public Action OnCloseRequested { get; set; }
+    public Action OnMoveLeftRequested { get; set; }
+    public Action OnMoveRightRequested { get; set; }
 
     public bool ShowCloseButton
     {
@@ -28,10 +32,29 @@ public class CloudIconGridPanel : Widget, IBrowserPanel
         }
     }
 
+    public bool ShowMoveLeftButton
+    {
+        get => _moveLeftBtn?.Visible ?? false;
+        set
+        {
+            if (_moveLeftBtn != null)
+                _moveLeftBtn.Visible = value;
+        }
+    }
+
+    public bool ShowMoveRightButton
+    {
+        get => _moveRightBtn?.Visible ?? false;
+        set
+        {
+            if (_moveRightBtn != null)
+                _moveRightBtn.Visible = value;
+        }
+    }
+
     public CloudIconGridPanel(Widget parent) : base(parent)
     {
         SetSizeMode(SizeMode.CanGrow, SizeMode.CanGrow);
-        MinimumWidth = 200;
         CreateUI();
     }
 
@@ -56,6 +79,18 @@ public class CloudIconGridPanel : Widget, IBrowserPanel
         _titleLabel.SetStyles("color: #888; font-size: 11px;");
 
         _toolbar.Layout.AddStretchCell();
+
+        _moveLeftBtn = _toolbar.Layout.Add(new IconButton("chevron_left"));
+        _moveLeftBtn.ToolTip = "Move Panel Left";
+        _moveLeftBtn.Background = Color.Transparent;
+        _moveLeftBtn.OnClick = () => OnMoveLeftRequested?.Invoke();
+        _moveLeftBtn.Visible = false;
+
+        _moveRightBtn = _toolbar.Layout.Add(new IconButton("chevron_right"));
+        _moveRightBtn.ToolTip = "Move Panel Right";
+        _moveRightBtn.Background = Color.Transparent;
+        _moveRightBtn.OnClick = () => OnMoveRightRequested?.Invoke();
+        _moveRightBtn.Visible = false;
 
         _closeBtn = _toolbar.Layout.Add(new IconButton("close"));
         _closeBtn.ToolTip = "Close Panel";
@@ -132,7 +167,8 @@ internal class CloudGridCanvas : Widget
                 Package = pkg,
                 Title = pkg.Title ?? pkg.FullIdent,
                 Author = pkg.Org?.Title ?? "Unknown",
-                FullIdent = pkg.FullIdent
+                FullIdent = pkg.FullIdent,
+                Thumb = pkg.Thumb
             });
         }
 
@@ -212,14 +248,21 @@ internal class CloudGridCanvas : Widget
             IconSize
         );
 
-        // Draw icon based on package type
-        Paint.SetBrush(Theme.WidgetBackground);
-        Paint.DrawRect(iconRect, 4);
+        // Draw thumbnail if available, otherwise icon based on package type
+        if (!string.IsNullOrEmpty(item.Thumb) && item.Thumb.StartsWith("http"))
+        {
+            Paint.Draw(iconRect, item.Thumb);
+        }
+        else
+        {
+            Paint.SetBrush(Theme.WidgetBackground);
+            Paint.DrawRect(iconRect, 4);
 
-        var icon = GetIconForType(item.Package.PackageType);
-        var iconColor = GetColorForType(item.Package.PackageType);
-        Paint.SetPen(iconColor);
-        Paint.DrawIcon(iconRect, icon, 48, TextFlag.Center);
+            var icon = GetIconForType(item.Package.PackageType);
+            var iconColor = GetColorForType(item.Package.PackageType);
+            Paint.SetPen(iconColor);
+            Paint.DrawIcon(iconRect, icon, 48, TextFlag.Center);
+        }
 
         // Title
         var titleRect = new Rect(rect.Left + 2, iconRect.Bottom + 2, rect.Width - 4, 16);
@@ -261,6 +304,10 @@ internal class CloudGridCanvas : Widget
         return index;
     }
 
+    private Vector2 _dragStartPos;
+    private bool _isDragging;
+    private int _dragItemIndex = -1;
+
     protected override void OnMouseMove(MouseEvent e)
     {
         base.OnMouseMove(e);
@@ -269,6 +316,17 @@ internal class CloudGridCanvas : Widget
         {
             _hoveredIndex = newHover;
             Update();
+        }
+
+        // Handle drag
+        if (e.ButtonState.HasFlag(MouseButtons.Left) && !_isDragging && _dragItemIndex >= 0)
+        {
+            var delta = e.LocalPosition - _dragStartPos;
+            if (delta.Length > 5)
+            {
+                _isDragging = true;
+                StartDrag(_dragItemIndex);
+            }
         }
     }
 
@@ -285,12 +343,33 @@ internal class CloudGridCanvas : Widget
         if (e.LeftMouseButton)
         {
             int index = GetItemAtPosition(e.LocalPosition);
+            _dragStartPos = e.LocalPosition;
+            _isDragging = false;
+            _dragItemIndex = index;
+
             if (index >= 0)
             {
                 _selectedIndex = index;
                 Update();
             }
         }
+    }
+
+    private void StartDrag(int index)
+    {
+        if (index < 0 || index >= _items.Count) return;
+        var item = _items[index];
+
+        var drag = new Drag(this);
+        drag.Data.Text = item.FullIdent;
+
+        // Set thumbnail URL if available
+        if (!string.IsNullOrEmpty(item.Thumb))
+        {
+            drag.Data.Url = new Uri(item.Thumb);
+        }
+
+        drag.Execute();
     }
 
     protected override void OnDoubleClick(MouseEvent e)
@@ -370,5 +449,6 @@ internal class CloudGridCanvas : Widget
         public string Title;
         public string Author;
         public string FullIdent;
+        public string Thumb;
     }
 }

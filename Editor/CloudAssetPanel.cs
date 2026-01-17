@@ -9,6 +9,7 @@ namespace GeneralGame.Editor;
 
 /// <summary>
 /// Panel for browsing cloud assets from the S&box community as a tree view.
+/// Shows categories with auto-loaded items and supports per-category search.
 /// </summary>
 public class CloudAssetPanel : Widget, IBrowserPanel
 {
@@ -16,13 +17,21 @@ public class CloudAssetPanel : Widget, IBrowserPanel
     private LineEdit _searchEdit;
     private IconButton _closeBtn;
     private IconButton _searchBtn;
+    private IconButton _clearSearchBtn;
     private IconButton _refreshBtn;
+    private IconButton _moveLeftBtn;
+    private IconButton _moveRightBtn;
     private TreeView _treeView;
     private Label _statusLabel;
 
-    private string _lastQuery = "";
+    private const int InitialItemsPerCategory = 10;
+    private const int SearchItemsPerCategory = 20;
+    private bool _isSearchMode = false;
+    private string _currentSearchQuery = "";
 
     public Action OnCloseRequested { get; set; }
+    public Action OnMoveLeftRequested { get; set; }
+    public Action OnMoveRightRequested { get; set; }
 
     /// <summary>
     /// Called when a cloud category/folder is clicked (for syncing with preview panels)
@@ -39,12 +48,34 @@ public class CloudAssetPanel : Widget, IBrowserPanel
         }
     }
 
+    public bool ShowMoveLeftButton
+    {
+        get => _moveLeftBtn?.Visible ?? false;
+        set
+        {
+            if (_moveLeftBtn != null)
+                _moveLeftBtn.Visible = value;
+        }
+    }
+
+    public bool ShowMoveRightButton
+    {
+        get => _moveRightBtn?.Visible ?? false;
+        set
+        {
+            if (_moveRightBtn != null)
+                _moveRightBtn.Visible = value;
+        }
+    }
+
     public CloudAssetPanel(Widget parent) : base(parent)
     {
         SetSizeMode(SizeMode.CanGrow, SizeMode.CanGrow);
-        MinimumWidth = 250;
         CreateUI();
         BuildCategoryTree();
+
+        // Auto-load initial items for all categories
+        _ = LoadAllCategoriesAsync();
     }
 
     private void CreateUI()
@@ -75,13 +106,32 @@ public class CloudAssetPanel : Widget, IBrowserPanel
         _searchBtn.Background = Color.Transparent;
         _searchBtn.OnClick = DoSearch;
 
+        // Clear search button
+        _clearSearchBtn = _toolbar.Layout.Add(new IconButton("close"));
+        _clearSearchBtn.ToolTip = "Clear Search";
+        _clearSearchBtn.Background = Color.Transparent;
+        _clearSearchBtn.OnClick = ClearSearch;
+        _clearSearchBtn.Visible = false;
+
         // Refresh button
         _refreshBtn = _toolbar.Layout.Add(new IconButton("refresh"));
-        _refreshBtn.ToolTip = "Refresh";
+        _refreshBtn.ToolTip = "Refresh All";
         _refreshBtn.Background = Color.Transparent;
-        _refreshBtn.OnClick = RefreshCurrentCategory;
+        _refreshBtn.OnClick = RefreshAll;
 
         _toolbar.Layout.AddStretchCell();
+
+        _moveLeftBtn = _toolbar.Layout.Add(new IconButton("chevron_left"));
+        _moveLeftBtn.ToolTip = "Move Panel Left";
+        _moveLeftBtn.Background = Color.Transparent;
+        _moveLeftBtn.OnClick = () => OnMoveLeftRequested?.Invoke();
+        _moveLeftBtn.Visible = false;
+
+        _moveRightBtn = _toolbar.Layout.Add(new IconButton("chevron_right"));
+        _moveRightBtn.ToolTip = "Move Panel Right";
+        _moveRightBtn.Background = Color.Transparent;
+        _moveRightBtn.OnClick = () => OnMoveRightRequested?.Invoke();
+        _moveRightBtn.Visible = false;
 
         // Close button
         _closeBtn = _toolbar.Layout.Add(new IconButton("close"));
@@ -89,10 +139,6 @@ public class CloudAssetPanel : Widget, IBrowserPanel
         _closeBtn.Background = Color.Transparent;
         _closeBtn.OnClick = () => OnCloseRequested?.Invoke();
         _closeBtn.Visible = false;
-
-        // Status label
-        _statusLabel = Layout.Add(new Label("Select a category to browse cloud assets", this));
-        _statusLabel.SetStyles("color: #666; font-size: 10px; padding: 4px;");
 
         // Tree view
         _treeView = Layout.Add(new TreeView(this));
@@ -103,19 +149,69 @@ public class CloudAssetPanel : Widget, IBrowserPanel
 
         _treeView.ItemActivated += OnItemActivated;
         _treeView.OnSelectionChanged += OnSelectionChanged;
+
+        // Status label at bottom
+        _statusLabel = Layout.Add(new Label("Loading...", this));
+        _statusLabel.SetStyles("color: #888; font-size: 10px; padding: 2px;");
+        _statusLabel.FixedHeight = 18;
     }
+
+    private List<CloudCategoryNode> _categoryNodes = new();
 
     private void BuildCategoryTree()
     {
         _treeView.Clear();
+        _categoryNodes.Clear();
 
-        // Add category folders
-        _treeView.AddItem(new CloudCategoryNode("model", "Models", "view_in_ar", this));
-        _treeView.AddItem(new CloudCategoryNode("material", "Materials", "texture", this));
-        _treeView.AddItem(new CloudCategoryNode("sound", "Sounds", "audiotrack", this));
-        _treeView.AddItem(new CloudCategoryNode("map", "Maps", "landscape", this));
+        // Add category folders - filter format: "type:model", "type:material", etc.
+        var models = new CloudCategoryNode("model", "Models", "view_in_ar", this);
+        var materials = new CloudCategoryNode("material", "Materials", "texture", this);
+        var sounds = new CloudCategoryNode("sound", "Sounds", "audiotrack", this);
+        var maps = new CloudCategoryNode("map", "Maps", "landscape", this);
+
+        _categoryNodes.Add(models);
+        _categoryNodes.Add(materials);
+        _categoryNodes.Add(sounds);
+        _categoryNodes.Add(maps);
+
+        foreach (var node in _categoryNodes)
+        {
+            _treeView.AddItem(node);
+        }
 
         _treeView.Update();
+    }
+
+    /// <summary>
+    /// Load initial items for all categories on startup
+    /// </summary>
+    private async Task LoadAllCategoriesAsync()
+    {
+        _statusLabel.Text = "Loading categories...";
+        int totalLoaded = 0;
+
+        foreach (var categoryNode in _categoryNodes)
+        {
+            try
+            {
+                // Query format: "type:model", "type:material", etc.
+                var query = $"type:{categoryNode.TypeFilter}";
+                var result = await Package.FindAsync(query, InitialItemsPerCategory, 0);
+
+                if (result?.Packages != null)
+                {
+                    categoryNode.SetPackagesAndRefresh(result.Packages.ToList());
+                    totalLoaded += categoryNode.Packages.Count;
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"[CloudAssetPanel] Failed to load {categoryNode.DisplayName}: {ex.Message}");
+            }
+        }
+
+        _treeView.Update();
+        _statusLabel.Text = $"Loaded {totalLoaded} cloud assets";
     }
 
     private async void DoSearch()
@@ -123,40 +219,57 @@ public class CloudAssetPanel : Widget, IBrowserPanel
         var query = _searchEdit.Text?.Trim() ?? "";
         if (string.IsNullOrEmpty(query))
         {
-            _statusLabel.Text = "Enter search query";
+            ClearSearch();
             return;
         }
 
-        _statusLabel.Text = "Searching...";
+        _currentSearchQuery = query;
+        _isSearchMode = true;
         _searchBtn.Enabled = false;
+        _clearSearchBtn.Visible = true;
+        _statusLabel.Text = $"Searching \"{query}\"...";
 
         try
         {
-            var result = await Package.FindAsync(query, take: 100);
+            int totalFound = 0;
 
-            if (result?.Packages != null && result.Packages.Any())
+            // Search in each category
+            foreach (var categoryNode in _categoryNodes)
             {
-                // Clear old search results
-                var existingSearch = _treeView.Items.OfType<CloudSearchResultsNode>().FirstOrDefault();
-                if (existingSearch != null)
+                try
                 {
-                    _treeView.RemoveItem(existingSearch);
+                    // Combine search query with type filter
+                    var searchQuery = $"{query} type:{categoryNode.TypeFilter}";
+                    var result = await Package.FindAsync(searchQuery, SearchItemsPerCategory, 0);
+
+                    if (result?.Packages != null && result.Packages.Any())
+                    {
+                        categoryNode.SetPackagesAndRefresh(result.Packages.ToList());
+                        totalFound += result.Packages.Count();
+                        // Auto-expand categories that have search results
+                        _treeView.Open(categoryNode);
+                    }
+                    else
+                    {
+                        categoryNode.SetPackagesAndRefresh(new List<Package>());
+                        // Collapse empty categories
+                        _treeView.Close(categoryNode);
+                    }
                 }
-
-                // Add search results node
-                var searchNode = new CloudSearchResultsNode(query, result.Packages.ToList());
-                _treeView.AddItem(searchNode);
-                _treeView.Open(searchNode);
-                _treeView.SelectItem(searchNode);
-
-                _statusLabel.Text = $"Found {result.Packages.Count()} results for \"{query}\"";
-
-                // Notify preview panels
-                OnCloudAssetsLoaded?.Invoke(result.Packages.ToList());
+                catch (Exception ex)
+                {
+                    Log.Warning($"Search error in {categoryNode.DisplayName}: {ex.Message}");
+                }
             }
-            else
+
+            _treeView.Update();
+            _statusLabel.Text = $"Found {totalFound} results for \"{query}\"";
+
+            // Notify with all found packages
+            var allPackages = _categoryNodes.SelectMany(c => c.Packages).ToList();
+            if (allPackages.Any())
             {
-                _statusLabel.Text = $"No results for \"{query}\"";
+                OnCloudAssetsLoaded?.Invoke(allPackages);
             }
         }
         catch (Exception ex)
@@ -170,13 +283,35 @@ public class CloudAssetPanel : Widget, IBrowserPanel
         }
     }
 
-    private async void RefreshCurrentCategory()
+    private void ClearSearch()
     {
-        var selected = _treeView.Selection.FirstOrDefault();
-        if (selected is CloudCategoryNode categoryNode)
+        _searchEdit.Text = "";
+        _currentSearchQuery = "";
+        _isSearchMode = false;
+        _clearSearchBtn.Visible = false;
+
+        // Reload all categories with default items
+        foreach (var node in _categoryNodes)
         {
-            categoryNode.IsLoaded = false;
-            await LoadCategoryAssets(categoryNode);
+            node.ClearPackages();
+        }
+        _ = LoadAllCategoriesAsync();
+    }
+
+    private async void RefreshAll()
+    {
+        foreach (var node in _categoryNodes)
+        {
+            node.ClearPackages();
+        }
+
+        if (_isSearchMode && !string.IsNullOrEmpty(_currentSearchQuery))
+        {
+            DoSearch();
+        }
+        else
+        {
+            await LoadAllCategoriesAsync();
         }
     }
 
@@ -196,69 +331,73 @@ public class CloudAssetPanel : Widget, IBrowserPanel
                 UseShellExecute = true
             });
         }
+        else if (item is CloudLoadMoreNode loadMoreNode)
+        {
+            _ = LoadMoreForCategory(loadMoreNode.Category);
+        }
     }
 
-    private async void OnSelectionChanged(object[] items)
+    private async Task LoadMoreForCategory(CloudCategoryNode categoryNode)
+    {
+        if (categoryNode.IsLoadingMore)
+            return;
+
+        categoryNode.IsLoadingMore = true;
+        var currentCount = categoryNode.Packages.Count;
+        _statusLabel.Text = $"Loading more {categoryNode.DisplayName.ToLower()}...";
+
+        try
+        {
+            string query;
+            if (_isSearchMode && !string.IsNullOrEmpty(_currentSearchQuery))
+            {
+                query = $"{_currentSearchQuery} type:{categoryNode.TypeFilter}";
+            }
+            else
+            {
+                query = $"type:{categoryNode.TypeFilter}";
+            }
+
+            var result = await Package.FindAsync(query, 20, currentCount);
+
+            if (result?.Packages != null && result.Packages.Any())
+            {
+                categoryNode.AppendPackagesAndRefresh(result.Packages.ToList());
+                _treeView.Update();
+                _statusLabel.Text = $"Loaded {categoryNode.Packages.Count} {categoryNode.DisplayName.ToLower()}";
+                OnCloudAssetsLoaded?.Invoke(categoryNode.Packages);
+            }
+            else
+            {
+                _statusLabel.Text = $"No more {categoryNode.DisplayName.ToLower()} found";
+            }
+        }
+        catch (Exception ex)
+        {
+            _statusLabel.Text = $"Error: {ex.Message}";
+            Log.Warning($"Load more error: {ex.Message}");
+        }
+        finally
+        {
+            categoryNode.IsLoadingMore = false;
+        }
+    }
+
+    private void OnSelectionChanged(object[] items)
     {
         var item = items.FirstOrDefault();
 
         if (item is CloudCategoryNode categoryNode)
         {
-            await LoadCategoryAssets(categoryNode);
-        }
-        else if (item is CloudSearchResultsNode searchNode)
-        {
-            _statusLabel.Text = $"{searchNode.Packages.Count} results for \"{searchNode.Query}\"";
-            OnCloudAssetsLoaded?.Invoke(searchNode.Packages);
+            if (categoryNode.Packages.Count > 0)
+            {
+                _statusLabel.Text = $"{categoryNode.Packages.Count} {categoryNode.DisplayName.ToLower()}";
+                OnCloudAssetsLoaded?.Invoke(categoryNode.Packages);
+            }
         }
         else if (item is CloudPackageNode packageNode)
         {
             _statusLabel.Text = $"{packageNode.Title} by {packageNode.Author}";
-        }
-    }
-
-    internal async Task LoadCategoryAssets(CloudCategoryNode categoryNode)
-    {
-        if (categoryNode.IsLoading || categoryNode.IsLoaded)
-        {
-            // Already loaded - just notify preview
-            if (categoryNode.IsLoaded)
-                OnCloudAssetsLoaded?.Invoke(categoryNode.Packages);
-            return;
-        }
-
-        categoryNode.IsLoading = true;
-        _statusLabel.Text = $"Loading {categoryNode.DisplayName}...";
-
-        try
-        {
-            var query = $"+type:{categoryNode.TypeFilter}";
-            var result = await Package.FindAsync(query, take: 100);
-
-            if (result?.Packages != null)
-            {
-                categoryNode.SetPackages(result.Packages.ToList());
-                _treeView.Open(categoryNode);
-                _treeView.Update();
-
-                _statusLabel.Text = $"Loaded {result.Packages.Count()} {categoryNode.DisplayName.ToLower()}";
-
-                // Notify preview panels
-                OnCloudAssetsLoaded?.Invoke(result.Packages.ToList());
-            }
-            else
-            {
-                _statusLabel.Text = $"No {categoryNode.DisplayName.ToLower()} found";
-            }
-        }
-        catch (Exception ex)
-        {
-            _statusLabel.Text = $"Error loading {categoryNode.DisplayName}: {ex.Message}";
-            Log.Warning($"Cloud category load error: {ex.Message}");
-        }
-        finally
-        {
-            categoryNode.IsLoading = false;
         }
     }
 }
@@ -271,12 +410,12 @@ internal class CloudCategoryNode : TreeNode
     public string TypeFilter { get; }
     public string DisplayName { get; }
     public string IconName { get; }
-    public bool IsLoading { get; set; }
-    public bool IsLoaded { get; set; }
+    public bool IsLoadingMore { get; set; }
     public List<Package> Packages { get; private set; } = new();
 
     private CloudAssetPanel _panel;
 
+    // Always show expand arrow - categories always have potential children
     public override bool HasChildren => true;
     public override string Name => DisplayName;
 
@@ -289,25 +428,53 @@ internal class CloudCategoryNode : TreeNode
         Value = this;
     }
 
-    public void SetPackages(List<Package> packages)
+    public void ClearPackages()
+    {
+        Packages.Clear();
+        Clear();
+        Dirty();
+    }
+
+    public void SetPackagesAndRefresh(List<Package> packages)
     {
         Packages = packages;
-        IsLoaded = true;
+
+        // Clear and rebuild children
         Clear();
 
-        foreach (var pkg in packages)
+        foreach (var pkg in Packages)
         {
             AddItem(new CloudPackageNode(pkg));
         }
+
+        // Always add "Load More" node
+        AddItem(new CloudLoadMoreNode(this));
+
+        Dirty();
+    }
+
+    public void AppendPackagesAndRefresh(List<Package> newPackages)
+    {
+        Packages.AddRange(newPackages);
+
+        // Clear and rebuild children
+        Clear();
+
+        foreach (var pkg in Packages)
+        {
+            AddItem(new CloudPackageNode(pkg));
+        }
+
+        // Add "Load More" node
+        AddItem(new CloudLoadMoreNode(this));
+
+        Dirty();
     }
 
     protected override void BuildChildren()
     {
-        // Load on expand
-        if (!IsLoaded && !IsLoading && _panel != null)
-        {
-            _ = _panel.LoadCategoryAssets(this);
-        }
+        // Children are built via SetPackagesAndRefresh/AppendPackagesAndRefresh
+        // This is called by TreeView when expanding - we already have children built
     }
 
     public override void OnPaint(VirtualWidget item)
@@ -318,7 +485,7 @@ internal class CloudCategoryNode : TreeNode
 
         // Draw folder icon
         var iconColor = Theme.Yellow;
-        if (IsLoading)
+        if (IsLoadingMore)
             iconColor = Theme.Primary;
 
         Paint.SetPen(iconColor);
@@ -331,68 +498,45 @@ internal class CloudCategoryNode : TreeNode
         Paint.SetDefaultFont(9, item.Selected ? 600 : 400);
         Paint.DrawText(rect, DisplayName, TextFlag.LeftCenter);
 
-        // Draw count if loaded
-        if (Packages.Count > 0)
-        {
-            var countText = $"({Packages.Count})";
-            Paint.SetPen(Theme.Text.WithAlpha(0.5f));
-            Paint.SetDefaultFont(8, 400);
-            var countRect = new Rect(item.Rect.Right - 50, item.Rect.Top, 46, item.Rect.Height);
-            Paint.DrawText(countRect, countText, TextFlag.RightCenter);
-        }
-    }
-}
-
-/// <summary>
-/// Tree node representing search results
-/// </summary>
-internal class CloudSearchResultsNode : TreeNode
-{
-    public string Query { get; }
-    public List<Package> Packages { get; }
-
-    public override bool HasChildren => Packages.Count > 0;
-    public override string Name => $"Search: {Query}";
-
-    public CloudSearchResultsNode(string query, List<Package> packages)
-    {
-        Query = query;
-        Packages = packages;
-        Value = this;
-
-        foreach (var pkg in packages)
-        {
-            AddItem(new CloudPackageNode(pkg));
-        }
-    }
-
-    public override void OnPaint(VirtualWidget item)
-    {
-        PaintSelection(item);
-
-        var rect = item.Rect;
-
-        // Draw search icon
-        Paint.SetPen(Theme.Primary);
-        Paint.DrawIcon(rect, "search", 16, TextFlag.LeftCenter);
-
-        rect.Left += 22;
-
-        // Draw query
-        Paint.SetPen(Theme.Text);
-        Paint.SetDefaultFont(9, item.Selected ? 600 : 400);
-
-        var displayText = $"\"{Query}\"";
-        if (displayText.Length > 20)
-            displayText = displayText.Substring(0, 18) + "..\"";
-        Paint.DrawText(rect, displayText, TextFlag.LeftCenter);
-
         // Draw count
         var countText = $"({Packages.Count})";
         Paint.SetPen(Theme.Text.WithAlpha(0.5f));
         Paint.SetDefaultFont(8, 400);
         var countRect = new Rect(item.Rect.Right - 50, item.Rect.Top, 46, item.Rect.Height);
         Paint.DrawText(countRect, countText, TextFlag.RightCenter);
+    }
+}
+
+/// <summary>
+/// Tree node for "Load More" action
+/// </summary>
+internal class CloudLoadMoreNode : TreeNode
+{
+    public CloudCategoryNode Category { get; }
+
+    public override bool HasChildren => false;
+    public override string Name => "Load More...";
+
+    public CloudLoadMoreNode(CloudCategoryNode category)
+    {
+        Category = category;
+        Value = this;
+    }
+
+    public override void OnPaint(VirtualWidget item)
+    {
+        var rect = item.Rect;
+
+        // Draw load more icon
+        Paint.SetPen(Theme.Primary.WithAlpha(0.7f));
+        Paint.DrawIcon(rect, "add_circle_outline", 14, TextFlag.LeftCenter);
+
+        rect.Left += 20;
+
+        // Draw text
+        Paint.SetPen(Theme.Primary);
+        Paint.SetDefaultFont(8, 400);
+        Paint.DrawText(rect, "Load More...", TextFlag.LeftCenter);
     }
 }
 
@@ -405,6 +549,7 @@ internal class CloudPackageNode : TreeNode
     public string FullIdent { get; }
     public string Title { get; }
     public string Author { get; }
+    public string Thumb { get; }
 
     public override bool HasChildren => false;
     public override string Name => Title;
@@ -415,6 +560,7 @@ internal class CloudPackageNode : TreeNode
         FullIdent = package.FullIdent;
         Title = package.Title ?? package.FullIdent;
         Author = package.Org?.Title ?? "Unknown";
+        Thumb = package.Thumb;
         Value = this;
     }
 
@@ -424,14 +570,26 @@ internal class CloudPackageNode : TreeNode
 
         var rect = item.Rect;
 
-        // Draw icon based on package type
-        var icon = GetIconForType(Package.PackageType);
-        var iconColor = GetColorForType(Package.PackageType);
+        // Draw package thumbnail if available, otherwise use type icon
+        if (!string.IsNullOrEmpty(Thumb) && Thumb.StartsWith("http"))
+        {
+            var iconRect = rect.Shrink(0, 2);
+            iconRect.Width = 16;
+            iconRect.Height = 16;
 
-        Paint.SetPen(iconColor);
-        Paint.DrawIcon(rect, icon, 14, TextFlag.LeftCenter);
+            Paint.Draw(iconRect, Thumb);
+            rect.Left += 20;
+        }
+        else
+        {
+            // Fallback to type icon
+            var icon = GetIconForType(Package.PackageType);
+            var iconColor = GetColorForType(Package.PackageType);
 
-        rect.Left += 20;
+            Paint.SetPen(iconColor);
+            Paint.DrawIcon(rect, icon, 14, TextFlag.LeftCenter);
+            rect.Left += 20;
+        }
 
         // Draw title
         Paint.SetPen(Theme.Text);
@@ -441,6 +599,21 @@ internal class CloudPackageNode : TreeNode
         if (title.Length > 30)
             title = title.Substring(0, 28) + "..";
         Paint.DrawText(rect, title, TextFlag.LeftCenter);
+    }
+
+    public override bool OnDragStart()
+    {
+        var drag = new Drag(TreeView);
+        drag.Data.Text = FullIdent;
+
+        // Set preview image if available
+        if (!string.IsNullOrEmpty(Thumb))
+        {
+            drag.Data.Url = new Uri(Thumb);
+        }
+
+        drag.Execute();
+        return true;
     }
 
     public override bool OnContextMenu()

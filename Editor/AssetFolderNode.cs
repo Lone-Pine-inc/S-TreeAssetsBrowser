@@ -16,6 +16,30 @@ public class AssetFolderNode : TreeNode
     public string DisplayName { get; }
     public string IconName { get; set; }
 
+    /// <summary>
+    /// Tracks whether this folder is currently expanded in the tree view.
+    /// Updated during OnPaint.
+    /// </summary>
+    public bool IsExpanded { get; private set; }
+
+    /// <summary>
+    /// Set to true to auto-expand this folder on first paint.
+    /// </summary>
+    public bool ShouldAutoExpand { get; set; }
+
+    /// <summary>
+    /// Dictionary of paths that should be auto-expanded, keyed by panel identifier.
+    /// Used to persist across node rebuilds while keeping panels separate.
+    /// </summary>
+    public static Dictionary<object, HashSet<string>> PathsToAutoExpandByPanel { get; } = new();
+
+    /// <summary>
+    /// Static event fired when any folder's expanded state changes.
+    /// Parameters: (panelKey, fullPath, isExpanded)
+    /// panelKey is TreeView.Parent which identifies the panel
+    /// </summary>
+    public static event Action<object, string, bool> OnExpandedStateChanged;
+
     private FileSystemWatcher _watcher;
     private bool _isRoot;
 
@@ -71,6 +95,7 @@ public class AssetFolderNode : TreeNode
             BuildChildren();
         }
     }
+
 
     protected override void BuildChildren()
     {
@@ -142,6 +167,38 @@ public class AssetFolderNode : TreeNode
 
     public override void OnPaint(VirtualWidget item)
     {
+        // Auto-expand if requested (for restoring saved state)
+        // Check both instance flag and panel-specific set
+        var panelKey = TreeView?.Parent;
+        HashSet<string> panelPaths = null;
+        bool inPanelSet = panelKey != null &&
+                         PathsToAutoExpandByPanel.TryGetValue(panelKey, out panelPaths) &&
+                         panelPaths.Contains(FullPath);
+
+        bool shouldExpand = ShouldAutoExpand || inPanelSet;
+        if (shouldExpand)
+        {
+            ShouldAutoExpand = false;
+            if (inPanelSet && panelPaths != null)
+            {
+                panelPaths.Remove(FullPath);
+            }
+
+            if (!item.IsOpen)
+            {
+                EnsureChildrenBuilt();
+                var tv = TreeView;
+                MainThread.Queue(() => tv?.Toggle(this));
+            }
+        }
+
+        // Track expanded state and notify if changed
+        if (IsExpanded != item.IsOpen)
+        {
+            IsExpanded = item.IsOpen;
+            OnExpandedStateChanged?.Invoke(panelKey, FullPath, IsExpanded);
+        }
+
         PaintSelection(item);
 
         var rect = item.Rect;
@@ -287,46 +344,143 @@ public class AssetFolderNode : TreeNode
         return true;
     }
 
-    public override void OnDragHover(Widget.DragEvent ev)
+    public override DropAction OnDragDrop(BaseItemWidget.ItemDragEvent e)
     {
-        ev.Action = DropAction.Copy;
-    }
+        var dropAction = e.HasCtrl ? DropAction.Copy : DropAction.Move;
 
-    public override void OnDrop(Widget.DragEvent ev)
-    {
-        foreach (var file in ev.Data.Files)
+        // If not actually dropping, just return the action (for hover feedback)
+        if (!e.IsDrop)
+            return dropAction;
+
+        // Check if any directories are being moved (not copied)
+        var foldersToMove = new List<string>();
+        var filesToProcess = new List<string>();
+
+        foreach (var file in e.Data.Files)
         {
             if (file.ToLowerInvariant() == FullPath.ToLowerInvariant())
                 continue;
 
+            var fileName = Path.GetFileName(file);
+            var destPath = Path.Combine(FullPath, fileName);
+
+            if (Path.GetFullPath(file).Equals(Path.GetFullPath(destPath), StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            if (Directory.Exists(file) && dropAction == DropAction.Move)
+            {
+                foldersToMove.Add(file);
+            }
+            else
+            {
+                filesToProcess.Add(file);
+            }
+        }
+
+        // Process files immediately (no confirmation needed)
+        ProcessFiles(filesToProcess, dropAction);
+
+        // Show confirmation for folder moves
+        if (foldersToMove.Count > 0)
+        {
+            var folderNames = string.Join(", ", foldersToMove.Select(Path.GetFileName));
+            var message = foldersToMove.Count == 1
+                ? $"Move folder \"{Path.GetFileName(foldersToMove[0])}\" to \"{DisplayName}\"?"
+                : $"Move {foldersToMove.Count} folders to \"{DisplayName}\"?";
+
+            var details = foldersToMove.Count == 1
+                ? $"From: {Path.GetDirectoryName(foldersToMove[0])}\nTo: {FullPath}"
+                : $"Folders: {folderNames}";
+
+            var targetPath = FullPath;
+            var folderNode = this;
+
+            ConfirmationDialog.Show(
+                "Move Folder",
+                message,
+                details,
+                onConfirm: () =>
+                {
+                    foreach (var folder in foldersToMove)
+                    {
+                        try
+                        {
+                            var fileName = Path.GetFileName(folder);
+                            var destPath = Path.Combine(targetPath, fileName);
+                            Directory.Move(folder, destPath);
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Error($"Failed to move folder: {ex.Message}");
+                        }
+                    }
+                    folderNode.Dirty();
+                }
+            );
+        }
+        else
+        {
+            // Refresh immediately if no folders to move
+            Dirty();
+        }
+
+        return dropAction;
+    }
+
+    /// <summary>
+    /// Process files and folders (copy operations or file moves)
+    /// </summary>
+    private void ProcessFiles(List<string> files, DropAction action)
+    {
+        foreach (var file in files)
+        {
             try
             {
                 var fileName = Path.GetFileName(file);
                 var destPath = Path.Combine(FullPath, fileName);
 
+                // Skip if same path
+                if (Path.GetFullPath(file).Equals(Path.GetFullPath(destPath), StringComparison.OrdinalIgnoreCase))
+                    continue;
+
                 if (Directory.Exists(file))
                 {
-                    if (ev.KeyboardModifiers.HasFlag(KeyboardModifiers.Ctrl))
+                    // It's a directory
+                    if (action == DropAction.Copy)
                         CopyDirectory(file, destPath);
                     else
-                        Directory.Move(file, destPath);
+                    {
+                        EditorUtility.RenameDirectory(file, destPath);
+                    }
                 }
                 else if (File.Exists(file))
                 {
-                    if (ev.KeyboardModifiers.HasFlag(KeyboardModifiers.Ctrl))
-                        File.Copy(file, destPath);
+                    // Check if it's a registered asset
+                    var asset = AssetSystem.FindByPath(file);
+
+                    if (asset != null && !asset.IsDeleted)
+                    {
+                        // Use EditorUtility for proper asset handling
+                        if (action == DropAction.Copy)
+                            EditorUtility.CopyAssetToDirectory(asset, FullPath);
+                        else
+                            EditorUtility.MoveAssetToDirectory(asset, FullPath);
+                    }
                     else
-                        File.Move(file, destPath);
+                    {
+                        // Regular file, not an asset
+                        if (action == DropAction.Copy)
+                            File.Copy(file, destPath);
+                        else
+                            File.Move(file, destPath);
+                    }
                 }
             }
             catch (Exception ex)
             {
-                Log.Error($"Failed to move/copy: {ex.Message}");
+                Log.Error($"Failed to {(action == DropAction.Copy ? "copy" : "move")}: {ex.Message}");
             }
         }
-
-        Dirty();
-        ev.Action = DropAction.Copy;
     }
 
     private static void CopyDirectory(string sourceDir, string destDir)
@@ -370,14 +524,23 @@ public class AssetFolderNode : TreeNode
             return false;
         }
 
-        // Otherwise scan filesystem directly
-        if (!Directory.Exists(FullPath))
+        // Otherwise scan filesystem directly (without creating node objects)
+        return ScanDirectoryForFilter(FullPath, filter, maxDepth: 5);
+    }
+
+    /// <summary>
+    /// Scan directory for filter match without creating node objects.
+    /// Limited depth to prevent excessive recursion.
+    /// </summary>
+    private static bool ScanDirectoryForFilter(string path, string filter, int maxDepth)
+    {
+        if (maxDepth <= 0 || !Directory.Exists(path))
             return false;
 
         try
         {
             // Check files in this folder
-            foreach (var file in Directory.GetFiles(FullPath))
+            foreach (var file in Directory.EnumerateFiles(path))
             {
                 var fileName = Path.GetFileName(file).ToLowerInvariant();
                 if (fileName.Contains(filter))
@@ -385,7 +548,7 @@ public class AssetFolderNode : TreeNode
             }
 
             // Check subfolders recursively
-            foreach (var dir in Directory.GetDirectories(FullPath))
+            foreach (var dir in Directory.EnumerateDirectories(path))
             {
                 var dirName = Path.GetFileName(dir);
 
@@ -397,9 +560,8 @@ public class AssetFolderNode : TreeNode
                 if (dirName.ToLowerInvariant().Contains(filter))
                     return true;
 
-                // Recursively check contents
-                var subFolder = new AssetFolderNode(dir);
-                if (subFolder.MatchesFilter(filter))
+                // Recursively check contents (with depth limit)
+                if (ScanDirectoryForFilter(dir, filter, maxDepth - 1))
                     return true;
             }
         }
@@ -496,5 +658,85 @@ internal class RenameDialog : PopupWidget
     {
         OpenAtCursor();
         _lineEdit.Focus();
+    }
+}
+
+/// <summary>
+/// Confirmation dialog for critical actions
+/// </summary>
+internal class ConfirmationDialog : Dialog
+{
+    public Action OnConfirm;
+    public Action OnCancel;
+
+    private Label _messageLabel;
+    private Label _detailsLabel;
+
+    public ConfirmationDialog(string title, string message, string details = null, string confirmText = "Confirm", string cancelText = "Cancel") : base(null)
+    {
+        Window.WindowTitle = title;
+        Window.Size = new Vector2(400, 180);
+        Window.MinimumSize = new Vector2(350, 150);
+
+        Layout = Layout.Column();
+        Layout.Margin = 16;
+        Layout.Spacing = 12;
+
+        // Warning icon and message
+        var headerRow = Layout.AddRow();
+        headerRow.Spacing = 12;
+
+        var iconLabel = headerRow.Add(new Label("⚠️", this));
+        iconLabel.SetStyles("font-size: 24px;");
+
+        var textColumn = headerRow.AddColumn();
+        textColumn.Spacing = 4;
+
+        _messageLabel = textColumn.Add(new Label(message, this));
+        _messageLabel.SetStyles("font-size: 13px; font-weight: 600;");
+        _messageLabel.WordWrap = true;
+
+        if (!string.IsNullOrEmpty(details))
+        {
+            _detailsLabel = textColumn.Add(new Label(details, this));
+            _detailsLabel.SetStyles("font-size: 11px; color: #aaa;");
+            _detailsLabel.WordWrap = true;
+        }
+
+        headerRow.AddStretchCell();
+
+        Layout.AddStretchCell();
+
+        // Buttons
+        var buttonRow = Layout.AddRow();
+        buttonRow.Spacing = 8;
+        buttonRow.AddStretchCell();
+
+        var cancelBtn = buttonRow.Add(new Button(cancelText, this));
+        cancelBtn.MinimumWidth = 80;
+        cancelBtn.Clicked = () =>
+        {
+            OnCancel?.Invoke();
+            Close();
+        };
+
+        var confirmBtn = buttonRow.Add(new Button.Primary(confirmText, this));
+        confirmBtn.MinimumWidth = 80;
+        confirmBtn.Clicked = () =>
+        {
+            OnConfirm?.Invoke();
+            Close();
+        };
+    }
+
+    /// <summary>
+    /// Show confirmation dialog and execute action if confirmed
+    /// </summary>
+    public static void Show(string title, string message, string details, Action onConfirm, Action onCancel = null)
+    {
+        var dialog = new ConfirmationDialog(title, message, details);
+        dialog.OnConfirm = onConfirm;
+        dialog.OnCancel = onCancel;
+        dialog.Show();
     }
 }
