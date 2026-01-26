@@ -258,8 +258,8 @@ internal class CloudGridCanvas : Widget
             Paint.SetBrush(Theme.WidgetBackground);
             Paint.DrawRect(iconRect, 4);
 
-            var icon = GetIconForType(item.Package.PackageType);
-            var iconColor = GetColorForType(item.Package.PackageType);
+            var icon = GetIconForType(item.Package.TypeName);
+            var iconColor = GetColorForType(item.Package.TypeName);
             Paint.SetPen(iconColor);
             Paint.DrawIcon(iconRect, icon, 48, TextFlag.Center);
         }
@@ -419,26 +419,26 @@ internal class CloudGridCanvas : Widget
         e.Accepted = true;
     }
 
-    private static string GetIconForType(Package.Type type)
+    private static string GetIconForType(string typeName)
     {
-        return type switch
+        return typeName switch
         {
-            Package.Type.Model => "view_in_ar",
-            Package.Type.Material => "texture",
-            Package.Type.Sound => "audiotrack",
-            Package.Type.Map => "landscape",
+            "model" => "view_in_ar",
+            "material" => "texture",
+            "sound" => "audiotrack",
+            "map" => "landscape",
             _ => "cloud_download"
         };
     }
 
-    private static Color GetColorForType(Package.Type type)
+    private static Color GetColorForType(string typeName)
     {
-        return type switch
+        return typeName switch
         {
-            Package.Type.Model => new Color(0.9f, 0.6f, 0.3f),
-            Package.Type.Material => new Color(0.9f, 0.4f, 0.6f),
-            Package.Type.Sound => new Color(0.4f, 0.7f, 1.0f),
-            Package.Type.Map => new Color(0.9f, 0.9f, 0.3f),
+            "model" => new Color(0.9f, 0.6f, 0.3f),
+            "material" => new Color(0.9f, 0.4f, 0.6f),
+            "sound" => new Color(0.4f, 0.7f, 1.0f),
+            "map" => new Color(0.9f, 0.9f, 0.3f),
             _ => Theme.Text.WithAlpha(0.7f)
         };
     }

@@ -1,9 +1,16 @@
 using Editor;
 using Sandbox;
+using Sandbox.Services;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
+using System.Numerics;
+using System.Runtime.Intrinsics.X86;
+using static Sandbox.Connection;
+using static Sandbox.Internal.IControlSheet;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace GeneralGame.Editor;
 
@@ -20,6 +27,9 @@ public class AssetFileNode : TreeNode
     public override bool HasChildren => false;
     public override string Name => Path.GetFileNameWithoutExtension(FileName);
     public override bool CanEdit => true;
+
+
+
 
     private static readonly Dictionary<string, string> ExtensionIcons = new()
     {

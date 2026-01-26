@@ -10,13 +10,13 @@
     "DeleteAt": 0
   },
   "Window.SboxSceneEditor.Dock": {
-    "Value": "{\u0022floatingWindows\u0022:[],\u0022mainWrapper\u0022:{\u0022geometry\u0022:\u0022AdnQywADAAAAAAAAAAAAAAAAB3cAAAPDAAAAAAAAAAAAAAd3AAADwwAAAAAAAAAAB4AAAAAAAAAAAAAAB3cAAAPD\u0022,\u0022splitter\u0022:{\u0022items\u0022:[{\u0022currentIndex\u0022:0,\u0022objects\u0022:[{\u0022data\u0022:null,\u0022managedType\u0022:\u0022Inspector\u0022,\u0022name\u0022:\u0022Inspector\u0022}],\u0022type\u0022:\u0022area\u0022},{\u0022currentIndex\u0022:0,\u0022objects\u0022:[{\u0022data\u0022:null,\u0022managedType\u0022:\u0022TreeAssetBrowser\u0022,\u0022name\u0022:\u0022Tree Asset Browser\u0022}],\u0022type\u0022:\u0022area\u0022},{\u0022items\u0022:[{\u0022items\u0022:[{\u0022currentIndex\u0022:0,\u0022objects\u0022:[{\u0022data\u0022:null,\u0022managedType\u0022:\u0022SceneTreeWidget\u0022,\u0022name\u0022:\u0022Hierarchy\u0022},{\u0022data\u0022:null,\u0022managedType\u0022:\u0022PanelInspectorWidget\u0022,\u0022name\u0022:\u0022UI Panels\u0022}],\u0022type\u0022:\u0022area\u0022},{\u0022currentIndex\u0022:0,\u0022objects\u0022:[{\u0022data\u0022:null,\u0022managedType\u0022:\u0022SceneDock\u0022,\u0022name\u0022:\u0022SceneDock:new scene.scene\u0022}],\u0022type\u0022:\u0022area\u0022}],\u0022state\u0022:\u0022AAAA/wAAAAEAAAACAAAA3AAAA/sA/////wEAAAABAA==\u0022,\u0022type\u0022:\u0022splitter\u0022},{\u0022currentIndex\u0022:0,\u0022objects\u0022:[{\u0022data\u0022:null,\u0022managedType\u0022:\u0022ConsoleWidget\u0022,\u0022name\u0022:\u0022Console\u0022},{\u0022data\u0022:null,\u0022managedType\u0022:\u0022MixerDock\u0022,\u0022name\u0022:\u0022Mixer\u0022},{\u0022data\u0022:null,\u0022managedType\u0022:\u0022LibraryManagerDock\u0022,\u0022name\u0022:\u0022Library Manager\u0022},{\u0022data\u0022:null,\u0022managedType\u0022:\u0022MainAssetBrowser\u0022,\u0022name\u0022:\u0022Asset Browser\u0022}],\u0022type\u0022:\u0022area\u0022}],\u0022state\u0022:\u0022AAAA/wAAAAEAAAACAAADXQAAAh0A/////wEAAAACAA==\u0022,\u0022type\u0022:\u0022splitter\u0022}],\u0022state\u0022:\u0022AAAA/wAAAAEAAAADAAAAzAAAARAAAAXcAP////8BAAAAAQA=\u0022,\u0022type\u0022:\u0022splitter\u0022}},\u0022toolWindowManagerStateFormat\u0022:1}",
-    "Timeout": 1771261300,
+    "Value": "{\u0022floatingWindows\u0022:[],\u0022mainWrapper\u0022:{\u0022geometry\u0022:\u0022AdnQywADAAAAAAAAAAAAAAAAB3cAAAPDAAAAAAAAAAAAAAd3AAADwwAAAAAAAAAAB4AAAAAAAAAAAAAAB3cAAAPD\u0022,\u0022splitter\u0022:{\u0022items\u0022:[{\u0022currentIndex\u0022:0,\u0022objects\u0022:[{\u0022data\u0022:null,\u0022managedType\u0022:\u0022Inspector\u0022,\u0022name\u0022:\u0022Inspector\u0022}],\u0022type\u0022:\u0022area\u0022},{\u0022currentIndex\u0022:0,\u0022objects\u0022:[{\u0022data\u0022:null,\u0022managedType\u0022:\u0022TreeAssetBrowser\u0022,\u0022name\u0022:\u0022Tree Asset Browser\u0022}],\u0022type\u0022:\u0022area\u0022},{\u0022items\u0022:[{\u0022items\u0022:[{\u0022currentIndex\u0022:0,\u0022objects\u0022:[{\u0022data\u0022:null,\u0022managedType\u0022:\u0022SceneTreeWidget\u0022,\u0022name\u0022:\u0022Hierarchy\u0022},{\u0022data\u0022:null,\u0022managedType\u0022:\u0022PanelInspectorWidget\u0022,\u0022name\u0022:\u0022UI Panels\u0022}],\u0022type\u0022:\u0022area\u0022},{\u0022currentIndex\u0022:0,\u0022objects\u0022:[{\u0022data\u0022:null,\u0022managedType\u0022:\u0022SceneDock\u0022,\u0022name\u0022:\u0022SceneDock:new scene.scene\u0022}],\u0022type\u0022:\u0022area\u0022}],\u0022state\u0022:\u0022AAAA/wAAAAEAAAACAAAA3AAAA/sA/////wEAAAABAA==\u0022,\u0022type\u0022:\u0022splitter\u0022},{\u0022currentIndex\u0022:0,\u0022objects\u0022:[{\u0022data\u0022:null,\u0022managedType\u0022:\u0022ConsoleWidget\u0022,\u0022name\u0022:\u0022Console\u0022},{\u0022data\u0022:null,\u0022managedType\u0022:\u0022MixerDock\u0022,\u0022name\u0022:\u0022Mixer\u0022},{\u0022data\u0022:null,\u0022managedType\u0022:\u0022LibraryManagerDock\u0022,\u0022name\u0022:\u0022Library Manager\u0022},{\u0022data\u0022:null,\u0022managedType\u0022:\u0022MainAssetBrowser\u0022,\u0022name\u0022:\u0022Asset Browser\u0022}],\u0022type\u0022:\u0022area\u0022}],\u0022state\u0022:\u0022AAAA/wAAAAEAAAACAAADXQAAAh0A/////wEAAAACAA==\u0022,\u0022type\u0022:\u0022splitter\u0022}],\u0022state\u0022:\u0022AAAA/wAAAAEAAAADAAABqAAAARUAAAVKAP////8BAAAAAQA=\u0022,\u0022type\u0022:\u0022splitter\u0022}},\u0022toolWindowManagerStateFormat\u0022:1}",
+    "Timeout": 1771265732,
     "DeleteAt": 0
   },
   "SceneView.Viewport0.Settings": {
-    "Value": "{\u0022CameraPosition\u0022:\u0022-295.2082,169.5213,-166.1052\u0022,\u0022CameraRotation\u0022:\u0022-0.004876195,0.1692799,0.02837767,0.9851473\u0022,\u0022View\u0022:0,\u0022RenderMode\u0022:0,\u0022WireframeMode\u0022:false,\u0022EnablePostProcessing\u0022:true,\u0022EnablePrefabLighting\u0022:true,\u0022ShowSkyIn2D\u0022:true,\u0022ShowGrid\u0022:true,\u0022GridOpacity\u0022:0.2,\u0022GridAxis\u0022:0,\u0022CameraOrthoHeight\u0022:1000}",
-    "Timeout": 1771264368,
+    "Value": "{\u0022CameraPosition\u0022:\u0022-470.1279,-16.85667,173.233\u0022,\u0022CameraRotation\u0022:\u0022-0.004876195,0.1692799,0.02837767,0.9851473\u0022,\u0022View\u0022:0,\u0022RenderMode\u0022:0,\u0022WireframeMode\u0022:false,\u0022EnablePostProcessing\u0022:true,\u0022EnablePrefabLighting\u0022:true,\u0022ShowSkyIn2D\u0022:true,\u0022ShowGrid\u0022:true,\u0022GridOpacity\u0022:0.2,\u0022GridAxis\u0022:0,\u0022CameraOrthoHeight\u0022:1000}",
+    "Timeout": 1771265734,
     "DeleteAt": 0
   },
   "gizmo.settings": {
@@ -26,7 +26,7 @@
   },
   "SceneView.Layout": {
     "Value": "{\u0022Layout\u0022:0,\u0022SplitterState\u0022:[]}",
-    "Timeout": 1771261257,
+    "Timeout": 1771265734,
     "DeleteAt": 0
   },
   "CloudBrowser..ViewMode": {
@@ -95,13 +95,13 @@
     "DeleteAt": 0
   },
   "TreeAssetBrowser.Browser_0.State": {
-    "Value": "{\u0022IsTabMode\u0022:true,\u0022ActiveTabIndex\u0022:1,\u0022PanelTypes\u0022:[\u0022Cloud\u0022,\u0022IconGrid\u0022,\u0022Tree\u0022]}",
-    "Timeout": 1771263716,
+    "Value": "{\u0022IsTabMode\u0022:true,\u0022ActiveTabIndex\u0022:2,\u0022PanelTypes\u0022:[\u0022Cloud\u0022,\u0022IconGrid\u0022,\u0022Tree\u0022]}",
+    "Timeout": 1771265734,
     "DeleteAt": 0
   },
   "TreeAssetBrowser.AllInstanceIds": {
     "Value": "[\u0022Browser_0\u0022]",
-    "Timeout": 1771263716,
+    "Timeout": 1771265734,
     "DeleteAt": 0
   },
   "TreeAssetBrowser.Browser_0_Panel0.ExpandedPaths": {
@@ -115,8 +115,8 @@
     "DeleteAt": 0
   },
   "new scene.scene.Viewport0": {
-    "Value": "{\u0022CameraPosition\u0022:\u0022-295.2082,169.5213,-166.1052\u0022,\u0022CameraRotation\u0022:\u0022-0.004876195,0.1692799,0.02837767,0.9851473\u0022,\u0022CameraOrthoHeight\u0022:1000}",
-    "Timeout": 1771264368,
+    "Value": "{\u0022CameraPosition\u0022:\u0022-470.1279,-16.85667,173.233\u0022,\u0022CameraRotation\u0022:\u0022-0.004876195,0.1692799,0.02837767,0.9851473\u0022,\u0022CameraOrthoHeight\u0022:1000}",
+    "Timeout": 1771265734,
     "DeleteAt": 0
   },
   "TreeAssetBrowser.Browser_0_Panel2.ExpandedPaths": {
